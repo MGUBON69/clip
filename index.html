@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>อัปโหลดคลิปวิดีโอแชร์ลิงก์</title>
+    <style>
+        body { font-family: sans-serif; background: #f4f7f6; padding: 20px; text-align: center; }
+        .container { background: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 400px; margin: auto; }
+        input[type="file"] { margin: 15px 0; width: 100%; }
+        button { background: #4285F4; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 16px; width: 100%; }
+        button:disabled { background: #ccc; }
+        #result { margin-top: 20px; word-break: break-all; }
+        .loader { display: none; margin: 10px auto; border: 4px solid #f3f3f3; border-top: 4px solid #4285F4; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>อัปโหลดคลิปวิดีโอ</h2>
+    <input type="file" id="videoFile" accept="video/*"><br>
+    <button id="uploadBtn" onclick="uploadVideo()">อัปโหลดและสร้างลิงก์</button>
+    <div class="loader" id="loader"></div>
+    <div id="result"></div>
+</div>
+
+<script>
+function uploadVideo() {
+    const fileInput = document.getElementById('videoFile');
+    const resultDiv = document.getElementById('result');
+    const loader = document.getElementById('loader');
+    const uploadBtn = document.getElementById('uploadBtn');
+
+    if (fileInput.files.length === 0) {
+        alert('กรุณาเลือกไฟล์วิดีโอก่อนค่ะ');
+        return;
+    }
+
+    const file = fileInput.files[0];
+    loader.style.display = 'block';
+    uploadBtn.disabled = true;
+    resultDiv.innerHTML = 'กำลังอัปโหลด กรุณารอสักครู่...';
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        google.script.run
+            .withSuccessHandler(function(response) {
+                loader.style.display = 'none';
+                uploadBtn.disabled = false;
+                if (response.success) {
+                    resultDiv.innerHTML = `
+                        <p style="color: green;"><b>อัปโหลดสำเร็จ!</b></p>
+                        <p>ลิงก์สำหรับดู/แชร์:</p>
+                        <a href="${response.fileUrl}" target="_blank">${response.fileUrl}</a>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<p style="color: red;">เกิดข้อผิดพลาด: ${response.error}</p>`;
+                }
+            })
+            .withFailureHandler(function(error) {
+                loader.style.display = 'none';
+                uploadBtn.disabled = false;
+                resultDiv.innerHTML = `<p style="color: red;">เกิดข้อผิดพลาด: ${error.message}</p>`;
+            })
+            .uploadFileToDrive(e.target.result, file.name, file.type);
+    };
+    reader.readAsDataURL(file);
+}
+</script>
+
+</body>
+</html>
