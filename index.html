@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบอัปโหลดคลิปวิดีโอ (Fast & Lightweight)</title>
+    <title>ระบบอัปโหลดคลิปวิดีโอ (Fast & Light)</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
         .card { background: #ffffff; padding: 30px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); width: 100%; max-width: 420px; box-sizing: border-box; text-align: center; }
@@ -23,7 +23,6 @@
     </style>
 
     <script>
-        // ฟังก์ชันอัปโหลดแบบน้ำหนักเบาโดยไม่ใช้ Firebase SDK
         window.uploadVideo = async function() {
             const fileInput = document.getElementById('videoFile');
             const uploadBtn = document.getElementById('uploadBtn');
@@ -40,38 +39,39 @@
 
             const file = fileInput.files[0];
             
-            // เตรียมหน้าจอสถานะกำลังอัปโหลด
             uploadBtn.disabled = true;
             progressContainer.style.display = 'block';
             resultBox.style.display = 'none';
-            progressBar.style.width = '50%';
-            statusText.innerText = 'กำลังส่งไฟล์เข้าสู่ระบบ...';
+            progressBar.style.width = '40%';
+            statusText.innerText = 'กำลังอัปโหลดไฟล์...';
 
             try {
-                // ใช้ FormData สำหรับส่งไฟล์ผ่าน HTTP POST (ตัวอย่างใช้บริการ Catbox API แบบรวดเร็วและฟรี)
                 const formData = new FormData();
-                formData.append('reqtype', 'fileupload');
-                formData.append('fileToUpload', file);
+                formData.append('file', file);
 
-                const response = await fetch('https://catbox.moe/user/api.php', {
+                // เปลี่ยนมาใช้ File.io API ที่รองรับการเชื่อมต่อจากเว็บทั่วไป
+                const response = await fetch('https://file.io', {
                     method: 'POST',
                     body: formData
                 });
 
                 if (!response.ok) {
-                    throw new Error('การเชื่อมต่อล้มเหลว');
+                    throw new Error('การอัปโหลดล้มเหลวจากเซิร์ฟเวอร์ปลายทาง');
                 }
 
-                const downloadURL = await response.text();
+                const data = await response.json();
 
-                // อัปโหลดสำเร็จ
-                progressBar.style.width = '100%';
-                statusText.innerText = 'อัปโหลดสำเร็จเรียบร้อยค่ะ!';
-                uploadBtn.disabled = false;
-                
-                shareLink.href = downloadURL.trim();
-                shareLink.innerText = downloadURL.trim();
-                resultBox.style.display = 'block';
+                if (data.success) {
+                    progressBar.style.width = '100%';
+                    statusText.innerText = 'อัปโหลดสำเร็จเรียบร้อยค่ะ!';
+                    uploadBtn.disabled = false;
+                    
+                    shareLink.href = data.link;
+                    shareLink.innerText = data.link;
+                    resultBox.style.display = 'block';
+                } else {
+                    throw new Error('ไม่สามารถรับลิงก์ดาวน์โหลดได้');
+                }
 
             } catch (error) {
                 alert('เกิดข้อผิดพลาดในการอัปโหลด: ' + error.message);
