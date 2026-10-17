@@ -3,71 +3,118 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>อัปโหลดคลิปวิดีโอแชร์ลิงก์</title>
+    <title>ระบบอัปโหลดคลิปวิดีโอ (Firebase Storage)</title>
     <style>
-        body { font-family: sans-serif; background: #f4f7f6; padding: 20px; text-align: center; }
-        .container { background: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 400px; margin: auto; }
-        input[type="file"] { margin: 15px 0; width: 100%; }
-        button { background: #4285F4; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 16px; width: 100%; }
-        button:disabled { background: #ccc; }
-        #result { margin-top: 20px; word-break: break-all; }
-        .loader { display: none; margin: 10px auto; border: 4px solid #f3f3f3; border-top: 4px solid #4285F4; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .card { background: #ffffff; padding: 30px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); width: 100%; max-width: 420px; box-sizing: border-box; text-align: center; }
+        h2 { color: #1a73e8; margin-bottom: 20px; font-size: 22px; }
+        .file-drop-area { border: 2px dashed #dadce0; border-radius: 12px; padding: 25px; margin-bottom: 20px; background: #f8f9fa; transition: 0.3s; }
+        .file-drop-area:hover { border-color: #1a73e8; }
+        input[type="file"] { width: 100%; font-size: 14px; }
+        .progress-container { width: 100%; background: #e0e0e0; border-radius: 8px; overflow: hidden; margin: 20px 0; display: none; }
+        .progress-bar { width: 0%; height: 12px; background: #1a73e8; transition: width 0.2s ease; }
+        .status-text { font-size: 14px; color: #5f6368; margin-bottom: 15px; }
+        button { background: #1a73e8; color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-size: 16px; width: 100%; font-weight: 600; transition: background 0.2s; }
+        button:hover { background: #1557b0; }
+        button:disabled { background: #bdc1c6; cursor: not-allowed; }
+        #resultBox { margin-top: 20px; display: none; text-align: left; background: #e8f0fe; padding: 15px; border-radius: 8px; word-break: break-all; }
+        #resultBox p { margin: 0 0 8px 0; font-size: 14px; color: #174ea6; font-weight: bold; }
+        #resultBox a { color: #1a73e8; text-decoration: none; display: block; background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #d2e3fc; }
     </style>
+
+    <!-- นำเข้า Firebase SDK (Modular Version v9/v10) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
+
+        // TODO: นำค่า Config ของ Firebase คุณชินอิจิมาใส่ตรงนี้
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        // เริ่มต้นระบบ Firebase
+        const app = initializeApp(firebaseConfig);
+        const storage = getStorage(app);
+
+        // ผูกฟังก์ชันเข้ากับปุ่มกดในหน้าเว็บ
+        window.uploadVideo = function() {
+            const fileInput = document.getElementById('videoFile');
+            const uploadBtn = document.getElementById('uploadBtn');
+            const progressContainer = document.getElementById('progressContainer');
+            const progressBar = document.getElementById('progressBar');
+            const statusText = document.getElementById('statusText');
+            const resultBox = document.getElementById('resultBox');
+            const shareLink = document.getElementById('shareLink');
+
+            if (fileInput.files.length === 0) {
+                alert('กรุณาเลือกไฟล์วิดีโอก่อนค่ะคุณชินอิจิ');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const fileName = 'videos/' + Date.now() + '_' + file.name;
+            const storageRef = ref(storage, fileName);
+
+            // เริ่มกระบวนการอัปโหลด
+            const uploadTask = uploadBytesResumable(storageRef, file);
+
+            uploadBtn.disabled = true;
+            progressContainer.style.display = 'block';
+            resultBox.style.display = 'none';
+
+            uploadTask.on('state_changed', 
+                (snapshot) => {
+                    // คำนวณเปอร์เซ็นต์ความคืบหน้า
+                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                    progressBar.style.width = progress + '%';
+                    statusText.innerText = `กำลังอัปโหลด... ${Math.round(progress)}%`;
+                }, 
+                (error) => {
+                    // กรณีเกิดข้อผิดพลาด
+                    alert('เกิดข้อผิดพลาดในการอัปโหลด: ' + error.message);
+                    uploadBtn.disabled = false;
+                    statusText.innerText = 'อัปโหลดไม่สำเร็จ';
+                }, 
+                () => {
+                    // อัปโหลดสำเร็จ ดึง Public URL มาแสดง
+                    getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+                        statusText.innerText = 'อัปโหลดสำเร็จเรียบร้อยค่ะ!';
+                        uploadBtn.disabled = false;
+                        
+                        shareLink.href = downloadURL;
+                        shareLink.innerText = downloadURL;
+                        resultBox.style.display = 'block';
+                    });
+                }
+            );
+        };
+    </script>
 </head>
 <body>
 
-<div class="container">
+<div class="card">
     <h2>อัปโหลดคลิปวิดีโอ</h2>
-    <input type="file" id="videoFile" accept="video/*"><br>
-    <button id="uploadBtn" onclick="uploadVideo()">อัปโหลดและสร้างลิงก์</button>
-    <div class="loader" id="loader"></div>
-    <div id="result"></div>
+    <div class="file-drop-area">
+        <input type="file" id="videoFile" accept="video/*">
+    </div>
+    
+    <button id="uploadBtn" onclick="uploadVideo()">อัปโหลดคลิปทันที</button>
+    
+    <div class="progress-container" id="progressContainer">
+        <div class="progress-bar" id="progressBar"></div>
+    </div>
+    <div class="status-text" id="statusText"></div>
+
+    <div id="resultBox">
+        <p>🔗 ลิงก์สำหรับแชร์ให้ผู้อื่น:</p>
+        <a id="shareLink" href="#" target="_blank"></a>
+    </div>
 </div>
-
-<script>
-function uploadVideo() {
-    const fileInput = document.getElementById('videoFile');
-    const resultDiv = document.getElementById('result');
-    const loader = document.getElementById('loader');
-    const uploadBtn = document.getElementById('uploadBtn');
-
-    if (fileInput.files.length === 0) {
-        alert('กรุณาเลือกไฟล์วิดีโอก่อนค่ะ');
-        return;
-    }
-
-    const file = fileInput.files[0];
-    loader.style.display = 'block';
-    uploadBtn.disabled = true;
-    resultDiv.innerHTML = 'กำลังอัปโหลด กรุณารอสักครู่...';
-
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        google.script.run
-            .withSuccessHandler(function(response) {
-                loader.style.display = 'none';
-                uploadBtn.disabled = false;
-                if (response.success) {
-                    resultDiv.innerHTML = `
-                        <p style="color: green;"><b>อัปโหลดสำเร็จ!</b></p>
-                        <p>ลิงก์สำหรับดู/แชร์:</p>
-                        <a href="${response.fileUrl}" target="_blank">${response.fileUrl}</a>
-                    `;
-                } else {
-                    resultDiv.innerHTML = `<p style="color: red;">เกิดข้อผิดพลาด: ${response.error}</p>`;
-                }
-            })
-            .withFailureHandler(function(error) {
-                loader.style.display = 'none';
-                uploadBtn.disabled = false;
-                resultDiv.innerHTML = `<p style="color: red;">เกิดข้อผิดพลาด: ${error.message}</p>`;
-            })
-            .uploadFileToDrive(e.target.result, file.name, file.type);
-    };
-    reader.readAsDataURL(file);
-}
-</script>
 
 </body>
 </html>
